@@ -40,10 +40,10 @@ describe('', function() {
       .del()
       .catch(function(error) {
         // uncomment when writing authentication tests
-        // throw {
-        //   type: 'DatabaseError',
-        //   message: 'Failed to create test setup data'
-        // };
+        throw {
+          type: 'DatabaseError',
+          message: 'Failed to create test setup data'
+        };
       });
 
     // delete user Phillip from db so it can be created later for the test
@@ -62,12 +62,14 @@ describe('', function() {
   describe('Link creation:', function(){
 
     var requestWithSession = request.defaults({jar: true});
-
-    xbeforeEach(function(done){      // create a user that we can then log-in with
+    // console.log(requestWithSession);
+    console.log('request.defaults-jar:');
+    beforeEach(function(done){      // create a user that we can then log-in with
       new User({
           'username': 'Phillip',
           'password': 'Phillip'
       }).save().then(function(){
+        console.log('reaching 2nd cb');
         var options = {
           'method': 'POST',
           'followAllRedirects': true,
@@ -79,6 +81,8 @@ describe('', function() {
         };
         // login via form and save session info
         requestWithSession(options, function(error, res, body) {
+          if(error){console.log('error: ', error)};
+          console.log('request Successful');
           done();
         });
       });
@@ -95,6 +99,7 @@ describe('', function() {
 
       requestWithSession(options, function(error, res, body) {
         // res comes from the request module, and may not follow express conventions
+        console.log('statuscode test');
         expect(res.statusCode).to.equal(404);
         done();
       });
@@ -115,6 +120,9 @@ describe('', function() {
         requestWithSession(options, function(error, res, body) {
           expect(res.body.url).to.equal('http://www.roflzoo.com/');
           expect(res.body.code).to.not.be.null;
+          console.log('res.body.code :', res.body.code);
+          console.log('res.body: ', res.body)
+
           done();
         });
       });
