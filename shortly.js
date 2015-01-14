@@ -1,3 +1,4 @@
+var crypto = require('crypto');
 var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
@@ -12,6 +13,7 @@ var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 var passport = require('passport');
 var LocalStrategy = require('passport-local').Strategy;
+var session = require('express-session');
 var app = express();
 
 app.set('views', __dirname + '/views');
@@ -23,81 +25,74 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
-// app.get('/', passport.authenticate('login'));
-
-// function(req, res) {
-//   // res.redirect(link.get('http://127.0.0.1:4568/login'))
-//   res.render('index')
-
-// passport.use(new LocalStrategy(
-//   function(username, password, done) {
-//     User.findOne({ username: username }, function (err, user) {
-//       if (err) { return done(err); }
-//       if (!user) {
-//         return done(null, false, { message: 'Incorrect username.' });
-//       }
-//       if (!user.validPassword(password)) {
-//         return done(null, false, { message: 'Incorrect password.' });
-//       }
-//       return done(null, user);
-//     });
-//   }
-// ));
-// passport.authenticate()
 app.get('/', function(req, res){
-  // res.render('index');
-  // res.render('login');
-  //if auth credentials posessed, render index
-  ////else: redirect to login.
-  //use: cookieparser: sessions.
-  res.redirect('/login');
+  util.checkUser(req, res, function(){
+    res.render('index');
+  });
+
 });
 
-app.get('/login', function(req, res){
-  res.render('login');
-});
-
-app.get('/create',
+app.get('/signup',
 function(req, res) {
+  console.log('redirected to app.get signup`');
+
   res.render('signup');
 });
 
 app.get('/links',
 function(req, res) {
-  Links.reset().fetch().then(function(links) {
-    res.send(200, links.models);
+  util.checkUser(req, res, function(){
+    Links.reset().fetch().then(function(links) {
+      res.send(200, links.models);
+    });
   });
 });
 
+app.get('/login', function(err, res){
+  res.render('login');
+});
 app.post('/login', function(req, res){
-  console.log('post to /login');
-  // console.log('req obj:', req);
-  console.log(req.body.username);
-  var newUser = new User({username: req.body.username}).fetch().then(function(fetched){
-    console.log('fetched : ', fetched);
-    if (fetched.attributes.password === req.body.password){
-      console.log('successful auth');
-      res.redirect('/');
-    }else{
-      res.redirect('/create');
+
+  var user =  req.body.username;
+  console.log("SHORTLY 54" + req.body.password)
+
+
+  var newUser = new User({username: user}).fetch().then(function(fetched){
+  console.log('fetched : ', fetched);
+    if (fetched === null){
+      console.log('REDIRECTING AT 60')
+      //maybe redirect to back to login
+      res.redirect('/signup');
+    } else {
+      //change to hash password check
+      //if correct user/pass add cookie
+      if (fetched.attributes.password === req.body.password){
+        console.log('successful auth');
+        res.redirect('/');
+      }else{
+        console.log("REDIRECTED AT 67")
+        res.redirect('/signup');
+      }
     }
   });
-  // db.knex('users').where('username', '=', req.body.username).then(function(users) {
-  //             if (users.length === 0) {
-  //               res.redirect();
-  //             } else{
-  //               console.log('successful Login');
-  //             }
-  // });
+});
+app.post('/signup', function(req, res){
+  //save username and hashed password to database
+  new User({
+          'username': req.body.username,
+          'password': req.body.username
+      }).save().then(function(newUser){
+        util.addSession(req, res, newUser);
+        Users.add(newUser);
+        res.redirect('/');
+      });
+
 });
 
-// app.post('/', function(req, res){
-//   console.log('post to /');
-// });
+app.post('/links', function(req, res) {
 
 
-app.post('/links',
-function(req, res) {
+
   console.log("POST TO APP POST ");
   var uri = req.body.url;
   if (!util.isValidUrl(uri)) {
@@ -143,27 +138,30 @@ function(req, res) {
 /************************************************************/
 
 app.get('/*', function(req, res) {
-  console.log("REQ.PARAMS[0] :  ", req.params[0])
-  new Link({ code: req.params[0] }).fetch().then(function(link) {
-    if (!link) {
-      res.redirect('/');
-    } else {
-      var click = new Click({
-        link_id: link.get('id')
-      });
+  if (req.params[0]!== 'favicon.ico') {
+    console.log("REQ.PARAMS :  ", req.params);
+    new Link({ code: req.params[0] }).fetch().then(function(link) {
+      if (!link) {
+        console.log("SHORTLY in /* ");
+        res.redirect('/');
+      } else {
+        var click = new Click({
+          link_id: link.get('id')
+        });
 
-      click.save().then(function() {
-        db.knex('urls')
-          .where('code', '=', link.get('code'))
-          .update({
-            visits: link.get('visits') + 1,
-          }).then(function() {
-            console.log(link.get('url'));
-            return res.redirect(link.get('url'));
-          });
-      });
-    }
-  });
+        click.save().then(function() {
+          db.knex('urls')
+            .where('code', '=', link.get('code'))
+            .update({
+              visits: link.get('visits') + 1,
+            }).then(function() {
+              console.log(link.get('url'));
+              return res.redirect(link.get('url'));
+            });
+        });
+      }
+    });
+  };
 });
 
 console.log('Shortly is listening on 4568');
